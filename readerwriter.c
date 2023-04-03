@@ -11,6 +11,11 @@ int main () {
 
     while(fscanf(file, "%c", &rw) != EOF) {
         int i;
+        if (rw == 'r') {
+
+        } else {
+            
+        }
         
     }
 }
