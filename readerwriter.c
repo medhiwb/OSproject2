@@ -1,1 +1,5 @@
-#include <stdlib.h>
+#include "thread.h"
+
+int main () {
+    
+}
