@@ -1,3 +1,6 @@
+#ifndef thread_h
+#define thread_h
+
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -72,3 +75,5 @@ void joinThreads(Thread* threads, int count) {
 	for (i = 0; i < count; i++)
 		joinThread(threads[i]);
 }
+
+#endif
