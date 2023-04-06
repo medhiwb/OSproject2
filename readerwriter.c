@@ -1,317 +1,77 @@
-#include "thread.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <semaphore.h>
 
-#define MAX_READERS 100
-#define MAX_WRITERS 100
-#define MAXNUM 100
-#define MAX_RW 15
+#include "readerwriter.h"
 
-Thread threadarray[100];
+sem_t resource_lock, rw_mutex, writer_mutex, reader_mutex;
+int read_count = 0;
+int write_count = 0;
 
-int main (int argc, char *argv[]) {
-    char filestr[MAXNUM]; // array of strings
-    char filestrings[MAXNUM][MAX_RW]; // accesses individual characters of each string
-
-    int numscenario = 0; // counts how many strings are in file
-    //int filestrlen; // length of each string
-
-    sem_init(&mutex, 0, 1);
-    sem_init(&write_mutex, 0, 1);
-
-    pthread_t readers[MAX_READERS], writers[MAX_WRITERS];
-    FILE *file = fopen("scenarios.txt", "r");
-
-    if (!file) {
-        printf("Error opening file.");
-        exit(1);
+void read_lock() {
+    sem_wait(&reader_mutex);
+    sem_wait(&writer_mutex); 
+    sem_wait(&rw_mutex);
+    read_count++;
+    if (read_count == 1)
+    {
+        sem_wait(&resource_lock);
     }
-
-    int readerthreadnum = 0; // keeps track how many readers
-    int writerthreadnum = 0; // keeps track how many writers
-
-    while (fgets(filestr, MAXNUM, file) != NULL) {
-        int filestrlen = strlen(filestr);
-        if (filestrlen > 0 && filestr[filestrlen - 1] == '\n') filestrlen--;
-        for (int i = 0; i < filestrlen; i++) {
-            //strcpy(&filestrings[numscenario], filestr);
-            filestrings[numscenario][i] = filestr[i];
-
-            if (filestrings[numscenario][i] == 'r') {
-                readerthreadnum++;
-                char* id = (char*)malloc(sizeof(char));
-                *id = 'r';
-                pthread_create(&readers[i], NULL, reader, (void*)id);
-            } else
-            if (filestrings[numscenario][i] == 'w') {
-                writerthreadnum++;
-                char* id = (char*)malloc(sizeof(char));
-                *id = 'w';
-                pthread_create(&writers[i], NULL, writer, (void*)id);
-            }
-        }
-        numscenario++;
-    }
-
-    // for (int i = 0; i < numscenario; i++) {
-    //     for (int j = 0; j < filestrlen; j++) {
-    //         if (filestrings[numscenario][j] == 'r') {
-    //             readerthreadnum++;
-    //             char* id = (char*)malloc(sizeof(char));
-    //             *id = 'r';
-    //             pthread_create(&readers[readerthreadnum], NULL, reader, (void*)id);
-    //         } else
-    //         if (filestrings[numscenario][j] == 'w') {
-    //             writerthreadnum++;
-    //             char* id = (char*)malloc(sizeof(char));
-    //             *id = 'w';
-    //             pthread_create(&writers[writerthreadnum], NULL, writer, (void*)id);
-    //         }
-    //     }
-    // }
-
-    // for (int i = 0; i < numscenario; i++) {
-    //     printf("%s\n", filestrings[i]);
-    //     printf("%d\n", i);
-    // }
-
-    for (int i = 0; i < readerthreadnum; i++) {
-        pthread_join(readers[i], NULL);
-    }
-    
-    for (int i = 0; i < writerthreadnum; i++) {
-        pthread_join(writers[i], NULL);
-    }
-
-    // joinThreads(threadarray, i);
-
-    fclose(file);
-    sem_destroy(&mutex);
-    sem_destroy(&write_mutex);
-    return 0;
+    sem_post(&rw_mutex);
+    sem_post(&writer_mutex); 
+    sem_post(&reader_mutex); 
 }
 
-// #include <stdio.h>
-// #include <unistd.h>
-// #include <string.h>
-// #include <stdlib.h>
-// #include <pthread.h>
-// #include <semaphore.h>
-// #define Thread pthread_t
-// #define joinThread(thread) pthread_join(thread, NULL)
+void read_unlock() {
+    sem_wait(&rw_mutex);
+    read_count--;
+    if (read_count == 0) {
+        sem_post(&resource_lock);
+    }
+    sem_post(&rw_mutex);
+}
 
-// #define MAX_READERS 100
-// #define MAX_WRITERS 100
-// #define MAXNUM 100
-// #define MAX_RW 15
+void write_lock() {
+    sem_wait(&writer_mutex); 
+    write_count++;     
+    if (write_count == 1) {
+        sem_wait(&reader_mutex);
+    }
+    sem_post(&writer_mutex); 
+    sem_wait(&resource_lock);
+}
 
-// sem_t mutex, write_mutex;
-// int readers_count = 0;
-// int data = 0;
+void write_unlock() {
+    sem_post(&resource_lock);
+    sem_wait(&writer_mutex); 
+    write_count--;           
+    if (write_count == 0) {
+        sem_post(&reader_mutex);
+    }
+    sem_post(&writer_mutex); 
+}
 
-// void* reader(void* arg) {
-//     char* thread_id = (char*)arg;
-//     while (1) {
-//         // Reader waits for other readers to finish before reading
-//         sem_wait(&mutex);
-//         readers_count++;
-//         if (readers_count == 1) {
-//             // First reader acquires the write mutex to prevent writers from accessing data
-//             sem_wait(&write_mutex);
-//         }
-//         sem_post(&mutex);
+void lock_init() {
+    sem_init(&resource_lock, 0, 1);
+    sem_init(&rw_mutex, 0, 1);
+    sem_init(&writer_mutex, 0, 1); 
+    sem_init(&reader_mutex, 0, 1);
+}
 
-//         // Reader reads data
-// 		printf("Create reader\n");
-//         printf("Reader %s is reading data: %d\n", thread_id, data);
-// 		printf("Finished reading\n");
+void lock_destroy() {
+    sem_destroy(&resource_lock);
+    sem_destroy(&rw_mutex);
+    sem_destroy(&writer_mutex); 
+    sem_destroy(&reader_mutex); 
+}
 
-//         sem_wait(&mutex);
-//         readers_count--;
-//         if (readers_count == 0) {
-//             // Last reader releases the write mutex
-//             sem_post(&write_mutex);
-//         }
-//         sem_post(&mutex);
-
-//         // Reader rests
-//         sleep(1);
-//     }
-// }
-
-// void* writer(void* arg) {
-//     char* thread_id = (char*)arg;
-//     while (1) {
-//         // Writer waits for the write mutex
-//         sem_wait(&write_mutex);
-
-//         // Writer modifies the data
-//         data++;
-// 		printf("Create writer\n");
-//         printf("Writer %s is writing data: %d\n", thread_id, data);
-// 		printf("Finished writing\n");
-
-//         // Writer releases the write mutex
-//         sem_post(&write_mutex);
-
-//         // Writer rests
-//         sleep(1);
-//     }
-// }
-// Thread createThread(void* threadFunction, void* args) {
-// 	Thread thread; 
-// 	pthread_create(&thread, NULL, threadFunction, args);
-// 	return thread;
-// }
-
-// void joinThreads(Thread* threads, int count) {
-// 	int i; 
-// 	for (i = 0; i < count; i++)
-// 		joinThread(threads[i]);
-// }
-
-// int main (int argc, char *argv[]) {
-//     char filestr[MAXNUM]; // array of strings
-//     char filestrings[MAXNUM][MAX_RW]; // accesses individual characters of each string
-
-//     int numscenario = 0; // counts how many strings are in file
-//     int filestrlen; // length of each string
-
-//     sem_init(&mutex, 0, 1);
-//     sem_init(&write_mutex, 0, 1);
-
-//     pthread_t readers[MAX_READERS], writers[MAX_WRITERS];
-//     FILE *file = fopen("scenarios.txt", "r");
-
-//     if (!file) {
-//         printf("Error opening file.");
-//         exit(1);
-//     }
-
-//     int readerthreadnum = 0; // keeps track how many readers
-//     int writerthreadnum = 0; // keeps track how many writers
-
-//     char c;
-//     while ((c = fgetc(file)) != EOF) {
-//     if (c == 'r') {
-//             readerthreadnum++;
-//         } else if (c == 'w') {
-//             writerthreadnum++;
-//         }
-//     }
-//     // while (fgets(filestr, MAXNUM, file) != NULL) {
-//     //     filestrlen = strlen(filestr);
-//     //     if (filestrlen > 0 && filestr[filestrlen - 1] == '\n') filestrlen--;
-//     //     for (int i = 0; i < filestrlen; i++) {
-//     //         //strcpy(&filestrings[numscenario], filestr);
-//     //         filestrings[numscenario][i] = filestr[i];
-
-//     //         if (filestrings[numscenario][i] == 'r') {
-//     //             readerthreadnum++;
-//     //             char* id = (char*)malloc(sizeof(char));
-//     //             *id = 'r';
-//     //             pthread_create(&readers[readerthreadnum], NULL, reader, (void*)id);
-//     //         } else
-//     //         if (filestrings[numscenario][i] == 'w') {
-//     //             writerthreadnum++;
-//     //             char* id = (char*)malloc(sizeof(char));
-//     //             *id = 'w';
-//     //             pthread_create(&writers[writerthreadnum], NULL, writer, (void*)id);
-//     //         }
-//     //     }
-//     //     numscenario++;
-//     // }
-
-//     for (int i = 0; i < readerthreadnum; i++) {
-//     char* id = (char*)malloc(sizeof(char));
-//     *id = 'r';
-//     pthread_create(&readers[i], NULL, reader, (void*)id);
-// }
-
-// for (int i = 0; i < writerthreadnum; i++) {
-//     char* id = (char*)malloc(sizeof(char));
-//     *id = 'w';
-//     pthread_create(&writers[i], NULL, writer, (void*)id);
-// }
-
-//     for (int i = 0; i < readerthreadnum; i++) {
-//         pthread_join(readers[i], NULL);
-//     }
-    
-//     for (int i = 0; i < writerthreadnum; i++) {
-//         pthread_join(writers[i], NULL);
-//     }
-
-//     fclose(file);
-//     sem_destroy(&mutex);
-//     sem_destroy(&write_mutex);
-//     return 0;
-// }
-
-
-// // int main (int argc, char *argv[]) {
-// //     char filestr[MAXNUM]; // array of strings
-// //     char filestrings[MAXNUM][MAX_RW]; // accesses individual characters of each string
-
-// //     int numscenario = 0; // counts how many strings are in file
-// //     int filestrlen; // length of each string
-
-// //     sem_init(&mutex, 0, 1);
-// //     sem_init(&write_mutex, 0, 1);
-
-// //     pthread_t readers[MAX_READERS], writers[MAX_WRITERS];
-// //     FILE *file = fopen("scenarios.txt", "r");
-
-// //     if (!file) {
-// //         printf("Error opening file.");
-// //         exit(1);
-// //     }
-
-// //     int readerthreadnum = 0; // keeps track how many readers
-// //     int writerthreadnum = 0; // keeps track how many writers
-
-// //     while (fgets(filestr, MAXNUM, file) != NULL) {
-// //         filestrlen = strlen(filestr);
-// //         if (filestrlen > 0 && filestr[filestrlen - 1] == '\n') filestrlen--;
-// //         for (int i = 0; i < filestrlen; i++) {
-// //             //strcpy(&filestrings[numscenario], filestr);
-// //             filestrings[numscenario][i] = filestr[i];
-// //         }
-// //         numscenario++;
-// //     }
-
-// //     for (int i = 0; i < numscenario; i++) {
-// //         for (int j = 0; j < filestrlen; j++) {
-// //             if (filestrings[numscenario][j] == 'r') {
-// //                 readerthreadnum++;
-// //                 char* id = (char*)malloc(sizeof(char));
-// //                 *id = 'r';
-// //                 pthread_create(&readers[readerthreadnum], NULL, reader, (void*)id);
-// //             } else
-// //             if (filestrings[numscenario][j] == 'w') {
-// //                 writerthreadnum++;
-// //                 char* id = (char*)malloc(sizeof(char));
-// //                 *id = 'w';
-// //                 pthread_create(&writers[writerthreadnum], NULL, writer, (void*)id);
-// //             }
-// //         }
-// //     }
-
-// //     // for (int i = 0; i < numscenario; i++) {
-// //     //     printf("%s\n", filestrings[i]);
-// //     //     printf("%d\n", i);
-// //     // }
-
-// //     for (int i = 0; i < readerthreadnum; i++) {
-// //         pthread_join(readers[i], NULL);
-// //     }
-    
-// //     for (int i = 0; i < writerthreadnum; i++) {
-// //         pthread_join(writers[i], NULL);
-// //     }
-
-// //     // joinThreads(threadarray, i);
-
-// //     fclose(file);
-// //     sem_destroy(&mutex);
-// //     sem_destroy(&write_mutex);
-// //     return 0;
-// // }
+void reading_writing() {
+    int x = 0, j = 0, i = 0;
+    int T = rand() % 10000;
+    for (i = 0; i < T; i++) {
+        for (j = 0; j < T; j++) {
+            x = i * j;
+        }
+    }
+}
