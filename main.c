@@ -72,3 +72,33 @@ void *writer(void *arg) {
     write_unlock();
     return NULL;
 }
+
+/*
+Pseudocode:
+while (file != NULL)
+    for (i to [end of string in file])
+        if (file[i] == r)
+            create reader thread
+        else
+            create writer thread
+        number of threads++
+    
+    for (i to number of threads)
+        join threads
+
+writer thread ()
+    print("create writer")
+    write_lock() <- locks mutex so no other writer can enter
+    print("writer is in writing")
+    reading_writing() <- acts kind of like a wait 
+    print("writer finishes")
+    writer_unlock() <- unlocks mutex so other writers/readers can enter
+
+reader thread ()
+    print("create reader")
+    read_lock() <- locks mutex so no other reader can enter
+    print("reader is in writing")
+    reading_writing() <- acts kind of like a wait 
+    print("reader finishes")
+    read_unlock() <- unlocks mutex so other writers/readers can enter
+*/
