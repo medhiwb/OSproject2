@@ -24,7 +24,7 @@ int main() {
 
     while (fgets(filestring, sizeof(filestring), file)) {
         scenarios++;
-        printf("Executing scenario %d: %s", scenarios, filestring);
+        printf("Executing scenario %d: %s\n", scenarios, filestring);
 
         pthread_t threads[MAX_THREADS];
         int thread_id[MAX_THREADS];
