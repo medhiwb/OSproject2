@@ -1,0 +1,2 @@
+Enter "make" to compile the files and then enter "./main" once compiled.
+If the makefile does not work, enter "gcc -std=c99 -o main main.o readerwriter.o -pthread" to compile.
